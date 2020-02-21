@@ -1,5 +1,5 @@
 import requests
-from bs4 import BeautifulSoup as BS
+from bs4 import BeautifulSoup as BS, NavigableString, Tag
 import pprint
 import sys
 import io
@@ -22,6 +22,9 @@ class WikiTable:
         self.log = logging
         self.string_headers = []
     
+    def clean_text(self, text):
+        return text.strip().replace("*", "").replace("†", "").replace("~", "")
+
     def extract_header_cell(self, element):
         abbr = element.find('abbr')
         if abbr:
@@ -37,29 +40,39 @@ class WikiTable:
         if sups:
             for sup in sups:
                 sup.decompose()
-        text = element.text.strip()
+        text = self.clean_text(element.text)
         try:
             num = int(text.replace(",", "").replace("−", "-"))
             return num
         except ValueError:
             pass
         try:
+            text = self.clean_text(element.text)
             num = float(text.replace(",", "").replace("−", "-"))
             return num
         except ValueError:
             pass
+
+        children = list(element.children)
+        outstr = ""
+        for child in children:
+            if type(child) == NavigableString:
+                outstr += self.clean_text(str(child))
+                continue
+            if child.get('alt'):
+                outstr += child.get('alt')
+                continue
         return text
 
     def is_row_th(self, th):
-        return th.get("scope") == "row"
+        return th.get("scope") == 'row'
 
     def parse_headers(self):
         entries = []
         trs = self.soup.find_all('tr')
         nrow = 0
         nattr = 0
-        for row in trs:
-            rows = []
+        for row_idx, row in enumerate(trs):
             ths = row.find_all('th')
             ncol = 0
             for th in ths:
@@ -74,10 +87,13 @@ class WikiTable:
                 ncol += colspan
                 nattr = max(nattr, ncol)
             nrow += 1
-            if (rows):
-                entries.append(rows)
 
         entries.sort(key=operator.itemgetter(0, 1))
+
+        log.debug('nrow={}'.format(nrow))
+
+        if nattr == 0:
+            raise Exception("Header not found.")
 
         n = len(entries) // nattr
         log.debug('parse_headers: nattr={}'.format(nattr))
@@ -89,6 +105,7 @@ class WikiTable:
                 colname = entry[2]
                 if headers[j] == [] or headers[j][-1] != colname:
                     headers[j].append(colname)
+        log.debug(headers)
         return headers
  
     def parse_data(self):
@@ -97,13 +114,12 @@ class WikiTable:
         nrow = 0
         nattr = 0
         for row in trs:
-            rows = []
-            ths = row.find_all('th', attrs={'scope': 'row'}, recursive=False)
+            ths = row.find_all('th', recursive=False)
             tds = row.find_all('td', recursive=False)
-            log.debug('len(ths): {} len(tds): {}'.format(len(ths), len(tds)))
+            if len(list(tds)) == 0:
+                continue
             ncol = 0
             row_cells = ths + tds
-            log.debug('len(row_cells): {}'.format(nattr))
             for cell in row_cells:
                 text = self.extract_data_cell(cell)
                 colspan = int(cell.get("colspan", "1"))
@@ -114,13 +130,8 @@ class WikiTable:
                 ncol += colspan
                 nattr = max(nattr, ncol)
             nrow += 1
-            if (rows):
-                entries.append(rows)
         
         entries.sort(key=operator.itemgetter(0, 1))
-
-        for triple in entries:
-            log.debug(triple)
 
         log.debug('parse_data: nattr={}'.format(nattr))
 
@@ -148,6 +159,10 @@ class WikiTable:
             self.log.warn("Unable to parse data.")
             return False
         nattr = len(self.headers)
+        if nattr == 0:
+            self.log.warn("Discarding tables without a header.")
+            self.isvalid = False
+            return False
         if nattr == 1:
             self.log.warn("Discarding tables with only 1 column.")
             self.isvalid = False
@@ -232,5 +247,9 @@ if __name__ == "__main__":
             if wtable.isvalid:
                 nvalid += 1
                 if (args.show):
-                    log.info("Table ({}/{})\n{}".format(i+1, len(tables), str(wtable)))
+                    log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
+                    log.info("Number of attributes: {}".format(wtable.nattr))
+                    log.info("Number of rows: {}".format(wtable.ndata))
+                    log.info("\n{}".format(str(wtable)))
+                    log.info("=== END OF TABLE ===")
         log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
