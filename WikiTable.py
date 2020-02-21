@@ -20,14 +20,31 @@ class WikiTable:
         self.ndata = 0
         self.nattr = 0
         self.isvalid = False
-        self.logging = logging
+        self.logging = logging.getLogger(__name__)
+        self.string_headers = []
     
-    def extract_cell(self, element):
-        # remove citations
+    def extract_header_cell(self, element):
         sup = element.find("sup")
         if sup:
             sup.decompose()
         return element.text.strip()
+
+    def extract_data_cell(self, element):
+        sup = element.find("sup")
+        if sup:
+            sup.decompose()
+        text = element.text.strip()
+        try:
+            num = int(text.replace(",", ""))
+            return num
+        except ValueError:
+            pass
+        try:
+            num = float(text.replace(",", ""))
+            return num
+        except ValueError:
+            pass
+        return text
 
     def parse_headers(self):
         entries = []
@@ -39,7 +56,7 @@ class WikiTable:
             ths = row.find_all('th')
             ncol = 0
             for th in ths:
-                text = self.extract_cell(th)
+                text = self.extract_header_cell(th)
                 colspan = int(th.get("colspan", "1"))
                 rowspan = int(th.get("rowspan", "1"))
                 for ci in range(ncol, ncol + colspan):
@@ -74,7 +91,7 @@ class WikiTable:
             tds = row.find_all('td')
             ncol = 0
             for td in tds:
-                text = td.text.strip()
+                text = self.extract_data_cell(td)
                 colspan = int(td.get("colspan", "1"))
                 rowspan = int(td.get("rowspan", "1"))
                 for ci in range(ncol, ncol + colspan):
@@ -117,6 +134,15 @@ class WikiTable:
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
             self.logging.error("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
+        unique_headers = set()
+        string_headers = [":".join(header) for header in self.headers]
+        for header in string_headers:
+            if header not in unique_headers:
+                unique_headers.add(header)
+            else:
+                self.logging.error("Duplicate header '{}' found.".format(header))
+                return
+        self.string_headers = string_headers
         self.nattr = nattr
         self.ndata = len(self.columns[0])
         self.isvalid = True
@@ -125,7 +151,7 @@ class WikiTable:
     def __str__(self):
         if not self.isvalid:
             return "INVALID TABLE"
-        pt = PrettyTable([":".join(header) for header in self.headers])
+        pt = PrettyTable(self.string_headers)
         for i in range(self.ndata):
             row = [self.columns[j][i] for j in range(self.nattr)]
             pt.add_row(row)
@@ -135,7 +161,7 @@ class WikiTable:
 #soup = BS(r.content)
 #tables = soup.findAll("table")
 
-with open("table2.html", "r", encoding="utf-8") as f:
+with open("table6.html", "r", encoding="utf-8") as f:
     test_html = f.read()
     test_table = BS(test_html, features="html.parser")
     wtable = WikiTable(test_table, logging)
