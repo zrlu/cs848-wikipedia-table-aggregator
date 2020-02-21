@@ -8,6 +8,8 @@ from collections import UserList
 import logging
 from prettytable import PrettyTable
 import argparse
+import csv
+import os
 
 class WikiTable:
 
@@ -202,12 +204,19 @@ class WikiTable:
         self.isvalid = True
         return True
     
+    def iter_row(self):
+        for i in range(self.ndata):
+            row = [self.columns[j][i] for j in range(self.nattr)]
+            yield row
+    
+    def __iter__(self):
+        return self.iter_row()
+
     def __str__(self):
         if not self.isvalid:
             return "INVALID TABLE"
         pt = PrettyTable(self.string_headers)
-        for i in range(self.ndata):
-            row = [self.columns[j][i] for j in range(self.nattr)]
+        for row in self.iter_row():
             pt.add_row(row)
         return str(pt)
 
@@ -230,8 +239,10 @@ if __name__ == "__main__":
     log.handlers.clear()
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    os.makedirs(args.outpath, exist_ok=True)
+    logpath = os.path.join(args.outpath, 'job.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
-    fileHandler = logging.FileHandler('job.log', 'w', 'utf-8')
+    fileHandler = logging.FileHandler(logpath, 'w', 'utf-8')
     fileHandler.setFormatter(formatter)
     stdErrHandler = logging.StreamHandler(sys.stderr)
     stdErrHandler.setFormatter(formatter)
@@ -252,10 +263,19 @@ if __name__ == "__main__":
             wtable.parse()
             if wtable.isvalid:
                 nvalid += 1
-                if (args.show):
+                if args.show:
                     log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
                     log.info("Number of attributes: {}".format(wtable.nattr))
                     log.info("Number of rows: {}".format(wtable.ndata))
                     log.info("\n{}".format(str(wtable)))
                     log.info("=== END OF TABLE ===")
+                if args.outpath:
+                    fp = os.path.join(args.outpath, 'table-{0:05d}.csv'.format(i))
+                    log.info("Writing to file {} ...".format(fp))
+                    with open(fp, 'w', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile, dialect='excel')
+                        writer.writerow(wtable.string_headers)
+                        for row in wtable:
+                            writer.writerow(row)
+                
         log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
