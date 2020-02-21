@@ -7,6 +7,7 @@ import operator
 from collections import UserList
 import logging
 from prettytable import PrettyTable
+import argparse
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -20,19 +21,21 @@ class WikiTable:
         self.ndata = 0
         self.nattr = 0
         self.isvalid = False
-        self.logging = logging.getLogger(__name__)
+        self.log = logging
         self.string_headers = []
     
     def extract_header_cell(self, element):
-        sup = element.find("sup")
-        if sup:
-            sup.decompose()
+        sups = element.find_all("sup")
+        if sups:
+            for sup in sups:
+                sup.decompose()
         return element.text.strip()
 
     def extract_data_cell(self, element):
-        sup = element.find("sup")
-        if sup:
-            sup.decompose()
+        sups = element.find_all("sup")
+        if sups:
+            for sup in sups:
+                sup.decompose()
         text = element.text.strip()
         try:
             num = int(text.replace(",", ""))
@@ -118,21 +121,21 @@ class WikiTable:
         try:
             self.headers = self.parse_headers()
         except Exception as e:
-            self.logging.error(e)
-            self.logging.error("Unable to parse header.")
+            self.log.warn(e)
+            self.log.warn("Unable to parse header.")
             return False
         try:
             self.columns = self.parse_data()
         except Exception as e:
-            self.logging.error(e)
-            self.logging.error("Unable to parse data.")
+            self.log.warn(e)
+            self.log.warn("Unable to parse data.")
             return False
         nattr = len(self.headers)
         if nattr != len(self.columns):
-            self.logging.error("The number of attributes does not match with the number of columns.")
+            self.log.warn("The number of attributes does not match with the number of columns.")
             return False
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
-            self.logging.error("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
+            self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
         unique_headers = set()
         string_headers = [":".join(header) for header in self.headers]
@@ -140,7 +143,7 @@ class WikiTable:
             if header not in unique_headers:
                 unique_headers.add(header)
             else:
-                self.logging.error("Duplicate header '{}' found.".format(header))
+                self.log.warn("Duplicate header '{}' found.".format(header))
                 return
         self.string_headers = string_headers
         self.nattr = nattr
@@ -157,13 +160,49 @@ class WikiTable:
             pt.add_row(row)
         return str(pt)
 
-# r = requests.get("https://en.wikipedia.org/wiki/2010%E2%80%9311_Premier_League");
-#soup = BS(r.content)
-#tables = soup.findAll("table")
 
-with open("table6.html", "r", encoding="utf-8") as f:
-    test_html = f.read()
-    test_table = BS(test_html, features="html.parser")
-    wtable = WikiTable(test_table, logging)
-    wtable.parse()
-    print(wtable)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
+    parser.add_argument('URLs', metavar='URL', type=str, nargs='+',
+                        help='the urls of the wikipedia page')
+    parser.add_argument('-o', '--out', dest='outpath', type=str, default=".",
+                        help='the output path')
+    parser.add_argument('-l', '--loglevel', dest='loglevel', type=str, default="INFO",
+                        help="log level (default='INFO')")
+    parser.add_argument('-s', '--show-table', dest='showtable', type=bool, default=False,
+                        help='the output path')
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        filename="debug.log",
+        filemode='w',
+        format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
+    )
+    log = logging.getLogger(__name__)
+    log.setLevel(args.loglevel)
+
+    for url in args.URLs:
+        log.info("GET " + url)
+        r = requests.get(url)
+        log.info("Response: {}".format(r.status_code))
+        soup = BS(r.content, features="html.parser")
+        tables = soup.findAll("table")
+        log.info("{} tables are found.")
+        nvalid = 0
+        for t in tables:
+            wtable = WikiTable(t, log)
+            wtable.parse()
+            if wtable.isvalid:
+                nvalid += 1
+                if (args.showtable):
+                    print(wtable)
+        log.info("{}/{} tables are valid".format(nvalid, len(tables)))
+                
+
+
+    # with open("table1.html", "r", encoding="utf-8") as f:
+    #     test_html = f.read()
+    #     test_table = BS(test_html, features="html.parser")
+    #     wtable = WikiTable(test_table, logging)
+    #     wtable.parse()
+    #     print(wtable)
