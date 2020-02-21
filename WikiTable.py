@@ -23,6 +23,9 @@ class WikiTable:
         self.string_headers = []
     
     def extract_header_cell(self, element):
+        abbr = element.find('abbr')
+        if abbr:
+            return abbr.get('title').strip()
         sups = element.find_all("sup")
         if sups:
             for sup in sups:
@@ -36,16 +39,19 @@ class WikiTable:
                 sup.decompose()
         text = element.text.strip()
         try:
-            num = int(text.replace(",", ""))
+            num = int(text.replace(",", "").replace("−", "-"))
             return num
         except ValueError:
             pass
         try:
-            num = float(text.replace(",", ""))
+            num = float(text.replace(",", "").replace("−", "-"))
             return num
         except ValueError:
             pass
         return text
+
+    def is_row_th(self, th):
+        return th.get("scope") == "row"
 
     def parse_headers(self):
         entries = []
@@ -57,6 +63,8 @@ class WikiTable:
             ths = row.find_all('th')
             ncol = 0
             for th in ths:
+                if self.is_row_th(th):
+                    continue
                 text = self.extract_header_cell(th)
                 colspan = int(th.get("colspan", "1"))
                 rowspan = int(th.get("rowspan", "1"))
@@ -72,6 +80,7 @@ class WikiTable:
         entries.sort(key=operator.itemgetter(0, 1))
 
         n = len(entries) // nattr
+        log.debug('parse_headers: nattr={}'.format(nattr))
         headers = [[] for i in range(nattr)]
 
         for i in range(n):
@@ -84,17 +93,21 @@ class WikiTable:
  
     def parse_data(self):
         entries = []
-        trs = self.soup.find_all('tr')
+        trs = self.soup.find('tbody').find_all('tr', recursive=False)
         nrow = 0
         nattr = 0
         for row in trs:
             rows = []
-            tds = row.find_all('td')
+            ths = row.find_all('th', attrs={'scope': 'row'}, recursive=False)
+            tds = row.find_all('td', recursive=False)
+            log.debug('len(ths): {} len(tds): {}'.format(len(ths), len(tds)))
             ncol = 0
-            for td in tds:
-                text = self.extract_data_cell(td)
-                colspan = int(td.get("colspan", "1"))
-                rowspan = int(td.get("rowspan", "1"))
+            row_cells = ths + tds
+            log.debug('len(row_cells): {}'.format(nattr))
+            for cell in row_cells:
+                text = self.extract_data_cell(cell)
+                colspan = int(cell.get("colspan", "1"))
+                rowspan = int(cell.get("rowspan", "1"))
                 for ci in range(ncol, ncol + colspan):
                     for ri in range(nrow, nrow + rowspan):
                         entries.append((ri, ci, text))
@@ -105,6 +118,12 @@ class WikiTable:
                 entries.append(rows)
         
         entries.sort(key=operator.itemgetter(0, 1))
+
+        for triple in entries:
+            log.debug(triple)
+
+        log.debug('parse_data: nattr={}'.format(nattr))
+
         n = len(entries) // nattr
         columns = [[] for i in range(nattr)]
 
@@ -139,6 +158,11 @@ class WikiTable:
             self.log.warn("The number of columns is {}".format(len(self.columns)))
             self.log.debug("Headers: ")
             self.log.debug(self.headers)
+
+            first_N_rows = min(10, len(self.columns[0]))
+            self.log.debug("First {} rows: ".format(first_N_rows))
+            for k in range(first_N_rows):
+                self.log.debug("Row {}: {}".format(k, [self.columns[i][k] for i in range(len(self.columns))]))
             return False
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
