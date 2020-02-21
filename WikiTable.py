@@ -10,6 +10,9 @@ from prettytable import PrettyTable
 import argparse
 
 class WikiTable:
+
+    JOIN = 'JOIN'
+    LAST = 'LAST'
     
     def __init__(self, soup, logging):
         self.soup = soup
@@ -21,6 +24,7 @@ class WikiTable:
         self.isvalid = False
         self.log = logging
         self.string_headers = []
+        self.string_headers_type = self.LAST
     
     def clean_text(self, text):
         return text.strip().replace("*", "").replace("†", "").replace("~", "")
@@ -53,15 +57,12 @@ class WikiTable:
         except ValueError:
             pass
 
-        children = list(element.children)
-        outstr = ""
-        for child in children:
-            if type(child) == NavigableString:
-                outstr += self.clean_text(str(child))
-                continue
-            if child.get('alt'):
-                outstr += child.get('alt')
-                continue
+        if text == "":
+            children = list(element.children)
+            for child in children:
+                if child.name == 'span':
+                    if child.get('title'):
+                        return child.get('title')
         return text
 
     def is_row_th(self, th):
@@ -72,8 +73,8 @@ class WikiTable:
         trs = self.soup.find_all('tr')
         nrow = 0
         nattr = 0
-        for row_idx, row in enumerate(trs):
-            ths = row.find_all('th')
+        for tr in trs:
+            ths = tr.find_all('th')
             ncol = 0
             for th in ths:
                 if self.is_row_th(th):
@@ -113,9 +114,11 @@ class WikiTable:
         trs = self.soup.find('tbody').find_all('tr', recursive=False)
         nrow = 0
         nattr = 0
-        for row in trs:
-            ths = row.find_all('th', recursive=False)
-            tds = row.find_all('td', recursive=False)
+        for tr in trs:
+            if 'sortbottom' in tr.get('class', []):
+                continue
+            ths = tr.find_all('th', recursive=False)
+            tds = tr.find_all('td', recursive=False)
             if len(list(tds)) == 0:
                 continue
             ncol = 0
@@ -183,7 +186,10 @@ class WikiTable:
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
         unique_headers = set()
-        string_headers = [":".join(header) for header in self.headers]
+        if self.string_headers_type == self.JOIN:
+            string_headers = [":".join(header) for header in self.headers]
+        else:
+            string_headers = [header[-1] for header in self.headers]
         for header in string_headers:
             if header not in unique_headers:
                 unique_headers.add(header)
