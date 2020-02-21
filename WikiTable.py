@@ -135,6 +135,10 @@ class WikiTable:
             return False
         if nattr != len(self.columns):
             self.log.warn("The number of attributes does not match with the number of columns.")
+            self.log.warn("The number of attributes is {}".format(nattr))
+            self.log.warn("The number of columns is {}".format(len(self.columns)))
+            self.log.debug("Headers: ")
+            self.log.debug(self.headers)
             return False
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
@@ -194,7 +198,7 @@ if __name__ == "__main__":
         r = requests.get(url)
         log.info("Response: {}".format(r.status_code))
         soup = BS(r.content, features="html.parser")
-        tables = soup.findAll("table")
+        tables = soup.findAll("table", attrs={"class": "wikitable"})
         log.info("{} tables are found.".format(len(tables)))
         nvalid = 0
         for i, t in enumerate(tables):
@@ -206,12 +210,3 @@ if __name__ == "__main__":
                 if (args.show):
                     log.info("Table ({}/{})\n{}".format(i+1, len(tables), str(wtable)))
         log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
-                
-
-
-    # with open("table1.html", "r", encoding="utf-8") as f:
-    #     test_html = f.read()
-    #     test_table = BS(test_html, features="html.parser")
-    #     wtable = WikiTable(test_table, logging)
-    #     wtable.parse()
-    #     print(wtable)
