@@ -9,8 +9,6 @@ import logging
 from prettytable import PrettyTable
 import argparse
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
 class WikiTable:
     
     def __init__(self, soup, logging):
@@ -131,6 +129,10 @@ class WikiTable:
             self.log.warn("Unable to parse data.")
             return False
         nattr = len(self.headers)
+        if nattr == 1:
+            self.log.warn("Discarding tables with only 1 column.")
+            self.isvalid = False
+            return False
         if nattr != len(self.columns):
             self.log.warn("The number of attributes does not match with the number of columns.")
             return False
@@ -167,19 +169,25 @@ if __name__ == "__main__":
                         help='the urls of the wikipedia page')
     parser.add_argument('-o', '--out', dest='outpath', type=str, default=".",
                         help='the output path')
-    parser.add_argument('-l', '--loglevel', dest='loglevel', type=str, default="INFO",
-                        help="log level (default='INFO')")
-    parser.add_argument('-s', '--show-table', dest='showtable', type=bool, default=False,
-                        help='the output path')
+    parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
+                        help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
+    parser.add_argument('--show', dest='show', action='store_true', help='print tables')
+    parser.add_argument('--no-show', dest='show', action='store_false')
+    parser.set_defaults(show=False)
     args = parser.parse_args()
 
-    logging.basicConfig(
-        filename="debug.log",
-        filemode='w',
-        format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
-    )
     log = logging.getLogger(__name__)
     log.setLevel(args.loglevel)
+    log.handlers.clear()
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
+    fileHandler = logging.FileHandler('job.log', 'w', 'utf-8')
+    fileHandler.setFormatter(formatter)
+    stdErrHandler = logging.StreamHandler(sys.stderr)
+    stdErrHandler.setFormatter(formatter)
+    log.addHandler(fileHandler)
+    log.addHandler(stdErrHandler)
 
     for url in args.URLs:
         log.info("GET " + url)
@@ -187,16 +195,17 @@ if __name__ == "__main__":
         log.info("Response: {}".format(r.status_code))
         soup = BS(r.content, features="html.parser")
         tables = soup.findAll("table")
-        log.info("{} tables are found.")
+        log.info("{} tables are found.".format(len(tables)))
         nvalid = 0
-        for t in tables:
+        for i, t in enumerate(tables):
+            log.info("Parsing table {}/{}...".format(i+1, len(tables)))
             wtable = WikiTable(t, log)
             wtable.parse()
             if wtable.isvalid:
                 nvalid += 1
-                if (args.showtable):
-                    print(wtable)
-        log.info("{}/{} tables are valid".format(nvalid, len(tables)))
+                if (args.show):
+                    log.info("Table ({}/{})\n{}".format(i+1, len(tables), str(wtable)))
+        log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
                 
 
 
