@@ -90,6 +90,9 @@ class WikiTable:
         nattr = 0
         for tr in trs:
             ths = tr.find_all('th')
+            tds = tr.find_all('td')
+            if list(tds) != []:
+                break
             ncol = 0
             for th in ths:
                 if self.is_row_th(th):
@@ -124,7 +127,7 @@ class WikiTable:
         return headers
  
     def is_summary_row(self, tr):
-        if tr.find_all(text=re.compile('sum|average|total', re.IGNORECASE)) != []:
+        if tr.find_all(text=re.compile('sum|average|total|turnout|majority', re.IGNORECASE)) != []:
             return True
         return False
 
@@ -204,7 +207,8 @@ class WikiTable:
             return False
 
         self.remove_empty_columns()
-
+        log.debug(self.headers)
+        log.debug(self.columns)
         nattr = len(self.headers)
 
         if nattr == 0:
