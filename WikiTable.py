@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import requests
 from bs4 import BeautifulSoup as BS, NavigableString, Tag
 import pprint
@@ -10,6 +12,7 @@ from prettytable import PrettyTable
 import argparse
 import csv
 import os
+import re
 
 class WikiTable:
 
@@ -26,10 +29,28 @@ class WikiTable:
         self.isvalid = False
         self.log = logging
         self.string_headers = []
-        self.string_headers_type = self.LAST
+        self.string_headers_type = self.JOIN
     
     def clean_text(self, text):
         return text.strip().replace("*", "").replace("†", "").replace("~", "")
+
+    def is_float(self, value):
+        try:
+            float(value)
+            return True
+        except TypeError:
+            return False
+        except ValueError:
+            return False
+
+    def is_int(self, value):
+        try:
+            int(value)
+            return True
+        except TypeError:
+            return False
+        except ValueError:
+            return False
 
     def extract_header_cell(self, element):
         abbr = element.find('abbr')
@@ -47,18 +68,10 @@ class WikiTable:
             for sup in sups:
                 sup.decompose()
         text = self.clean_text(element.text)
-        try:
-            num = int(text.replace(",", "").replace("−", "-"))
-            return num
-        except ValueError:
-            pass
-        try:
-            text = self.clean_text(element.text)
-            num = float(text.replace(",", "").replace("−", "-"))
-            return num
-        except ValueError:
-            pass
-
+        if self.is_float(text):
+            return float(text)
+        if self.is_int(text):
+            return int(text)
         if text == "":
             children = list(element.children)
             for child in children:
@@ -108,9 +121,13 @@ class WikiTable:
                 colname = entry[2]
                 if headers[j] == [] or headers[j][-1] != colname:
                     headers[j].append(colname)
-        log.debug(headers)
         return headers
  
+    def is_summary_row(self, tr):
+        if tr.find_all(text=re.compile('sum|average|total', re.IGNORECASE)) != []:
+            return True
+        return False
+
     def parse_data(self):
         entries = []
         trs = self.soup.find('tbody').find_all('tr', recursive=False)
@@ -119,21 +136,30 @@ class WikiTable:
         for tr in trs:
             if 'sortbottom' in tr.get('class', []):
                 continue
+            if self.is_summary_row(tr):
+                log.info("A summary row seems to be found, early break.")
+                break
             ths = tr.find_all('th', recursive=False)
             tds = tr.find_all('td', recursive=False)
             if len(list(tds)) == 0:
                 continue
             ncol = 0
             row_cells = ths + tds
+            
+            is_summary_row = False
+            this_row_entries = []
+
             for cell in row_cells:
                 text = self.extract_data_cell(cell)
                 colspan = int(cell.get("colspan", "1"))
                 rowspan = int(cell.get("rowspan", "1"))
                 for ci in range(ncol, ncol + colspan):
                     for ri in range(nrow, nrow + rowspan):
-                        entries.append((ri, ci, text))
+                        this_row_entries.append((ri, ci, text))
                 ncol += colspan
                 nattr = max(nattr, ncol)
+
+            entries += this_row_entries
             nrow += 1
         
         entries.sort(key=operator.itemgetter(0, 1))
@@ -150,6 +176,19 @@ class WikiTable:
                 columns[j].append(value)
         return columns
 
+    def remove_empty_columns(self):
+        headers_to_remove = []
+        cur = 0
+        ncol = len(self.columns)
+        while cur < ncol:
+            if all(map(lambda value: value == '', self.columns[cur])):
+                del self.columns[cur]
+                ncol = len(self.columns)
+                headers_to_remove.append(self.headers[i])
+            cur += 1
+        for h in headers_to_remove:
+            self.headers.remove(h)
+
     def parse(self):
         try:
             self.headers = self.parse_headers()
@@ -163,7 +202,11 @@ class WikiTable:
             self.log.warn(e)
             self.log.warn("Unable to parse data.")
             return False
+
+        self.remove_empty_columns()
+
         nattr = len(self.headers)
+
         if nattr == 0:
             self.log.warn("Discarding tables without a header.")
             self.isvalid = False
@@ -177,7 +220,6 @@ class WikiTable:
             self.log.warn("The number of attributes is {}".format(nattr))
             self.log.warn("The number of columns is {}".format(len(self.columns)))
             self.log.debug("Headers: ")
-            self.log.debug(self.headers)
 
             first_N_rows = min(10, len(self.columns[0]))
             self.log.debug("First {} rows: ".format(first_N_rows))
@@ -197,6 +239,7 @@ class WikiTable:
                 unique_headers.add(header)
             else:
                 self.log.warn("Duplicate header '{}' found.".format(header))
+                self.log.debug(header)
                 return
         self.string_headers = string_headers
         self.nattr = nattr
