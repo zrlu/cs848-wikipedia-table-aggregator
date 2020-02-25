@@ -9,6 +9,7 @@ import operator
 from collections import UserList
 import logging
 from prettytable import PrettyTable
+from htmltableparser import HTMLTableParser
 import argparse
 import csv
 import os
@@ -24,11 +25,9 @@ class WikiTable:
         self.title = None
         self.headers = []
         self.columns = []
-        self.ndata = 0
-        self.nattr = 0
+        self.unmerged_table = []
         self.isvalid = False
         self.log = logging
-        self.string_headers = []
         self.string_headers_type = self.JOIN
     
     def clean_text(self, text):
@@ -84,123 +83,92 @@ class WikiTable:
         return th.get("scope") == 'row'
 
     def parse_headers(self):
-        entries = []
-        trs = self.soup.find_all('tr')
-        nrow = 0
-        nattr = 0
-        for tr in trs:
-            ths = tr.find_all('th')
-            tds = tr.find_all('td')
-            if list(tds) != []:
+        headers = []
+        row_idx = 0
+        while 1:
+            row = []
+            stop = False
+            for col in self.unmerged_table:
+                cell = col[row_idx]
+                if cell.name == 'td':
+                    stop = True
+                    break
+                if cell.name == 'th':
+                    row.append(self.extract_header_cell(cell))
+            if stop:
                 break
-            ncol = 0
-            for th in ths:
-                if self.is_row_th(th):
-                    continue
-                text = self.extract_header_cell(th)
-                colspan = int(th.get("colspan", "1"))
-                rowspan = int(th.get("rowspan", "1"))
-                for ci in range(ncol, ncol + colspan):
-                    for ri in range(nrow, nrow + rowspan):
-                        entries.append((ri, ci, text))
-                ncol += colspan
-                nattr = max(nattr, ncol)
-            nrow += 1
+            if row:
+                headers.append(row)
+            row_idx += 1
 
-        entries.sort(key=operator.itemgetter(0, 1))
-
-        log.debug('nrow={}'.format(nrow))
-
-        if nattr == 0:
+        if not headers:
             raise Exception("Header not found.")
 
-        n = len(entries) // nattr
-        log.debug('parse_headers: nattr={}'.format(nattr))
-        headers = [[] for i in range(nattr)]
-
-        for i in range(n):
-            for j in range(nattr):
-                entry = entries[i*nattr+j]
-                colname = entry[2]
-                if headers[j] == [] or headers[j][-1] != colname:
-                    headers[j].append(colname)
-        return headers
+        return list(map(list, zip(*headers))), row_idx
  
-    def is_summary_row(self, tr):
-        if tr.find_all(text=re.compile('sum|average|total|turnout|majority', re.IGNORECASE)) != []:
-            return True
+    def is_summary_row(self, row):
+        for data in row:
+            if type(data) == str:
+                if re.match(re.compile('sum|average|total|turnout|majority|summary', re.IGNORECASE), data) is not None:
+                    return True
         return False
 
-    def parse_data(self):
-        entries = []
-        trs = self.soup.find('tbody').find_all('tr', recursive=False)
-        nrow = 0
-        nattr = 0
-        for tr in trs:
-            if 'sortbottom' in tr.get('class', []):
-                continue
-            if self.is_summary_row(tr):
-                log.info("A summary row seems to be found, early break.")
-                break
-            ths = tr.find_all('th', recursive=False)
-            tds = tr.find_all('td', recursive=False)
-            if len(list(tds)) == 0:
-                continue
-            ncol = 0
-            row_cells = ths + tds
-            
-            is_summary_row = False
-            this_row_entries = []
+    def remove_row(self, i):
+        for col in self.columns:
+            del col[i]
 
-            for cell in row_cells:
-                text = self.extract_data_cell(cell)
-                colspan = int(cell.get("colspan", "1"))
-                rowspan = int(cell.get("rowspan", "1"))
-                for ci in range(ncol, ncol + colspan):
-                    for ri in range(nrow, nrow + rowspan):
-                        this_row_entries.append((ri, ci, text))
-                ncol += colspan
-                nattr = max(nattr, ncol)
+    def tag_count(self, tags, tagname):
+        count = 0
+        for tag in tags:
+            if tag.name == tagname:
+                count += 1
+        return count
 
-            entries += this_row_entries
-            nrow += 1
+    def parse_data(self, row_idx):
+        columns = []
         
-        entries.sort(key=operator.itemgetter(0, 1))
+        for col in self.unmerged_table:
+            columns.append(list(map(self.extract_data_cell, col[row_idx+1:])))
 
-        log.debug('parse_data: nattr={}'.format(nattr))
-
-        n = len(entries) // nattr
-        columns = [[] for i in range(nattr)]
-
-        for i in range(n):
-            for j in range(nattr):
-                entry = entries[i*nattr+j]
-                value = entry[2]
-                columns[j].append(value)
         return columns
 
     def remove_empty_columns(self):
         headers_to_remove = []
         cur = 0
-        ncol = len(self.columns)
-        while cur < ncol:
+        while cur < self.col_size():
             if all(map(lambda value: value == '', self.columns[cur])):
+                headers_to_remove.append(self.headers[cur])
                 del self.columns[cur]
-                ncol = len(self.columns)
-                headers_to_remove.append(self.headers[i])
             cur += 1
         for h in headers_to_remove:
             self.headers.remove(h)
+    
+    def remove_summary_rows(self):
+        cur = 0
+        while cur < self.row_size():
+            if self.is_summary_row(self.get_row(cur)):
+                log.info("Row {} looks like a summary row, removed.".format(cur))
+                self.remove_row(cur)
+            cur += 1
 
     def parse(self):
         try:
-            self.headers = self.parse_headers()
+            parser = HTMLTableParser()
+            parser.parse_soup(self.soup)
+            self.unmerged_table = parser.get_columns()
+        except Exception as e:
+            self.log.warn(e)
+            self.log.warn("HTMLTableParser: unable to parse unmerge cells.")
+            return False
+        try:
+            self.headers, row_idx = self.parse_headers()
+            self.log.debug(self.headers)
         except Exception as e:
             self.log.warn(e)
             self.log.warn("Unable to parse header.")
             return False
         try:
-            self.columns = self.parse_data()
+            self.columns = self.parse_data(row_idx)
         except Exception as e:
             self.log.warn(e)
             self.log.warn("Unable to parse data.")
@@ -233,28 +201,39 @@ class WikiTable:
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
+
         unique_headers = set()
-        if self.string_headers_type == self.JOIN:
-            string_headers = [":".join(header) for header in self.headers]
-        else:
-            string_headers = [header[-1] for header in self.headers]
-        for header in string_headers:
+        for header in self.string_headers():
             if header not in unique_headers:
                 unique_headers.add(header)
             else:
                 self.log.warn("Duplicate header '{}' found.".format(header))
                 self.log.debug(header)
-                return
-        self.string_headers = string_headers
-        self.nattr = nattr
-        self.ndata = len(self.columns[0])
+                return False
+
+        self.remove_summary_rows()
+
         self.isvalid = True
         return True
     
+    def string_headers(self):
+        if self.string_headers_type == self.JOIN:
+            return [":".join(header) for header in self.headers]
+        return [header[-1] for header in self.headers]
+
+    def row_size(self):
+        return len(self.columns[0])
+    
+    def col_size(self):
+        return len(self.columns)
+    
+    def get_row(self, i):
+        row = [self.columns[j][i] for j in range(self.col_size())]
+        return row
+
     def iter_row(self):
-        for i in range(self.ndata):
-            row = [self.columns[j][i] for j in range(self.nattr)]
-            yield row
+        for i in range(self.row_size()):
+            yield self.get_row(i)
     
     def __iter__(self):
         return self.iter_row()
@@ -262,7 +241,7 @@ class WikiTable:
     def __str__(self):
         if not self.isvalid:
             return "INVALID TABLE"
-        pt = PrettyTable(self.string_headers)
+        pt = PrettyTable(self.string_headers())
         for row in self.iter_row():
             pt.add_row(row)
         return str(pt)
@@ -312,8 +291,8 @@ if __name__ == "__main__":
                 nvalid += 1
                 if args.show:
                     log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
-                    log.info("Number of attributes: {}".format(wtable.nattr))
-                    log.info("Number of rows: {}".format(wtable.ndata))
+                    log.info("Number of attributes: {}".format(wtable.col_size()))
+                    log.info("Number of rows: {}".format(wtable.row_size()))
                     log.info("\n{}".format(str(wtable)))
                     log.info("=== END OF TABLE ===")
                 if args.outpath:
@@ -321,7 +300,7 @@ if __name__ == "__main__":
                     log.info("Writing to file {} ...".format(fp))
                     with open(fp, 'w', encoding='utf-8') as csvfile:
                         writer = csv.writer(csvfile, dialect='excel')
-                        writer.writerow(wtable.string_headers)
+                        writer.writerow(wtable.string_headers())
                         for row in wtable:
                             writer.writerow(row)
                 
