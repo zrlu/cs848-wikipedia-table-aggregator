@@ -14,13 +14,14 @@ import argparse
 import csv
 import os
 import re
+import urllib
 
 class WikiTable:
 
     JOIN = 'JOIN'
     LAST = 'LAST'
     
-    def __init__(self, soup, logging):
+    def __init__(self, soup, logging=logging):
         self.soup = soup
         self.title = None
         self.headers = []
@@ -260,6 +261,48 @@ class WikiTable:
             pt.add_row(row)
         return str(pt)
 
+class WikiPage:
+
+    def __init__(self, url, logging=logging, showtable=False):
+        self.url = url
+        self.tables = []
+        self.log = logging
+        self.showtable = showtable
+
+    def parse_tables(self):
+        self.log.info("GET " + url)
+        r = requests.get(self.url)
+        self.log.info("Response: {}".format(r.status_code))
+        soup = BS(r.content, features="html.parser")
+        tables = soup.findAll("table", attrs={"class": "wikitable"})
+        self.log.info("{} tables are found.".format(len(tables)))
+        nvalid = 0
+        for i, t in enumerate(tables):
+            log.info("Parsing table {}/{}...".format(i+1, len(tables)))
+            wtable = WikiTable(t, log)
+            wtable.parse()
+            if wtable.isvalid:
+                nvalid += 1
+                self.tables.append(wtable)
+                if self.showtable:
+                    log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
+                    log.info("Number of attributes: {}".format(wtable.count_cols()))
+                    log.info("Number of rows: {}".format(wtable.count_rows()))
+                    log.info("\n{}".format(str(wtable)))
+                    log.info("=== END OF TABLE ===")
+        log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
+    
+    def save(self, outpath):
+        for i, wtable in enumerate(self.tables):
+            os.makedirs(outpath, exist_ok=True)
+            fp = os.path.join(outpath, 'table-{0:05d}.csv'.format(i))
+            log.info("Writing to file {} ...".format(fp))
+            with open(fp, 'w', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile, dialect='excel')
+                writer.writerow(wtable.string_headers())
+                for row in wtable:
+                    writer.writerow(row)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
@@ -269,8 +312,8 @@ if __name__ == "__main__":
                         help='the output path')
     parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
                         help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
-    parser.add_argument('--show-table', dest='show', action='store_true', help='print tables')
-    parser.add_argument('--no-show-table', dest='show', action='store_false')
+    parser.add_argument('--show-table', dest='showtable', action='store_true', help='print tables')
+    parser.add_argument('--no-show-table', dest='showtable', action='store_false')
     parser.set_defaults(show=False)
     args = parser.parse_args()
 
@@ -291,32 +334,8 @@ if __name__ == "__main__":
     log.addHandler(stdErrHandler)
 
     for url in args.URLs:
-        log.info("GET " + url)
-        r = requests.get(url)
-        log.info("Response: {}".format(r.status_code))
-        soup = BS(r.content, features="html.parser")
-        tables = soup.findAll("table", attrs={"class": "wikitable"})
-        log.info("{} tables are found.".format(len(tables)))
-        nvalid = 0
-        for i, t in enumerate(tables):
-            log.info("Parsing table {}/{}...".format(i+1, len(tables)))
-            wtable = WikiTable(t, log)
-            wtable.parse()
-            if wtable.isvalid:
-                nvalid += 1
-                if args.show:
-                    log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
-                    log.info("Number of attributes: {}".format(wtable.count_cols()))
-                    log.info("Number of rows: {}".format(wtable.count_rows()))
-                    log.info("\n{}".format(str(wtable)))
-                    log.info("=== END OF TABLE ===")
-                if args.outpath:
-                    fp = os.path.join(args.outpath, 'table-{0:05d}.csv'.format(i))
-                    log.info("Writing to file {} ...".format(fp))
-                    with open(fp, 'w', encoding='utf-8') as csvfile:
-                        writer = csv.writer(csvfile, dialect='excel')
-                        writer.writerow(wtable.string_headers())
-                        for row in wtable:
-                            writer.writerow(row)
-                
-        log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
+        page_name = url.split("/")[-1]
+        page = WikiPage(url, logging=log, showtable=args.showtable)
+        page.parse_tables()
+        if args.outpath:
+            page.save(os.path.join(args.outpath, page_name))
