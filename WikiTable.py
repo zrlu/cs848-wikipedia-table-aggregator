@@ -135,7 +135,7 @@ class WikiTable:
     def remove_empty_columns(self):
         headers_to_remove = []
         cur = 0
-        while cur < self.col_size():
+        while cur < self.count_cols():
             if all(map(lambda value: value == '', self.columns[cur])):
                 headers_to_remove.append(self.headers[cur])
                 del self.columns[cur]
@@ -145,7 +145,7 @@ class WikiTable:
     
     def remove_summary_rows(self):
         cur = 0
-        while cur < self.row_size():
+        while cur < self.count_rows():
             if self.is_summary_row(self.get_row(cur)):
                 log.info("Row {} looks like a summary row, removed.".format(cur))
                 self.remove_row(cur)
@@ -221,18 +221,18 @@ class WikiTable:
             return [":".join(header) for header in self.headers]
         return [header[-1] for header in self.headers]
 
-    def row_size(self):
+    def count_rows(self):
         return len(self.columns[0])
     
-    def col_size(self):
+    def count_cols(self):
         return len(self.columns)
     
     def get_row(self, i):
-        row = [self.columns[j][i] for j in range(self.col_size())]
+        row = [self.columns[j][i] for j in range(self.count_cols())]
         return row
 
     def iter_row(self):
-        for i in range(self.row_size()):
+        for i in range(self.count_rows()):
             yield self.get_row(i)
     
     def __iter__(self):
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
     parser.add_argument('URLs', metavar='URL', type=str, nargs='+',
                         help='the urls of the wikipedia page')
-    parser.add_argument('-o', '--out', dest='outpath', type=str, default=".",
+    parser.add_argument('-o', '--out', dest='outpath', type=str, default="",
                         help='the output path')
     parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
                         help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
@@ -265,7 +265,8 @@ if __name__ == "__main__":
     log.handlers.clear()
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-    os.makedirs(args.outpath, exist_ok=True)
+    if args.outpath:
+        os.makedirs(args.outpath, exist_ok=True)
     logpath = os.path.join(args.outpath, 'job.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
     fileHandler = logging.FileHandler(logpath, 'w', 'utf-8')
@@ -291,8 +292,8 @@ if __name__ == "__main__":
                 nvalid += 1
                 if args.show:
                     log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
-                    log.info("Number of attributes: {}".format(wtable.col_size()))
-                    log.info("Number of rows: {}".format(wtable.row_size()))
+                    log.info("Number of attributes: {}".format(wtable.count_cols()))
+                    log.info("Number of rows: {}".format(wtable.count_rows()))
                     log.info("\n{}".format(str(wtable)))
                     log.info("=== END OF TABLE ===")
                 if args.outpath:
