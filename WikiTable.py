@@ -116,8 +116,8 @@ class WikiTable:
         for data in row:
             if type(data) == str:
                 if re.match(re.compile('sum|average|total|turnout|majority|summary|career|all-star', re.IGNORECASE), data) is not None:
-                    return True
-        return False
+                    return True, data
+        return False, None
 
     def remove_row(self, i):
         for col in self.columns:
@@ -151,11 +151,19 @@ class WikiTable:
     
     def remove_summary_rows(self):
         cur = 0
+        removed = 0
+        old_idx = 0
         while cur < self.count_rows():
-            if self.is_summary_row(self.get_row(cur)):
-                log.info("Row {} looks like a summary row, removed.".format(cur))
+            is_summary, s = self.is_summary_row(self.get_row(cur))
+            if is_summary:
+                log.info("Row {} looks like a summary row with keyword '{}', removed.".format(old_idx+1, s))
                 self.remove_row(cur)
+                removed += 1
+                old_idx += 1
+                continue
             cur += 1
+            old_idx += 1
+        log.info("Removed {} summary rows.".format(removed))
 
     def parse(self):
         try:
