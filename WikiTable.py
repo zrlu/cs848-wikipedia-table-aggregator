@@ -164,7 +164,7 @@ class WikiTable:
             self.unmerged_table = parser.get_columns()
         except Exception as e:
             self.log.warn(e)
-            self.log.warn("HTMLTableParser: unable to parse unmerge cells.")
+            self.log.warn("HTMLTableParser: unable to parse raw html table.")
             return False
         try:
             self.headers, row_idx = self.parse_headers()
