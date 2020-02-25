@@ -10,6 +10,7 @@ import json
 from WikiTable import WikiTable, WikiPage
 from logger import get_logger
 import os
+import multiprocessing
 
 DBO = rdflib.Namespace("http://dbpedia.org/ontology/")
 DBR = rdflib.Namespace("http://dbpedia.org/resource/")
@@ -53,16 +54,30 @@ r = requests.get(query_url)
 print(r.status_code)
 data = json.loads(r.content)
 
-LOGGER = get_logger(__name__, 'nba.log')
-
 dump_path = 'dump'
 bindings = data['results']['bindings']
 
-print(len(bindings))
 
+pairs = []
 for binding in bindings:
     name = binding['name']['value']
     url = binding['url']['value']
-    wiki_page = WikiPage(url, LOGGER)
+    pairs.append((name, url))
+
+LOGGERS = {}
+
+def init_worker():
+    current_p = multiprocessing.current_process()
+    LOGGERS[current_p.name] = get_logger(current_p.name, current_p.name + '.log')
+
+def func(args):
+    name, url = args
+    current_p = multiprocessing.current_process()
+    wiki_page = WikiPage(url, LOGGERS[current_p.name])
     wiki_page.parse_tables()
     wiki_page.save(os.path.join(dump_path, name.encode('ascii', 'replace').decode('ascii') ))
+
+pool = multiprocessing.Pool(50, initializer=init_worker)
+pool.map(func, pairs)
+pool.close()
+pool.join()
