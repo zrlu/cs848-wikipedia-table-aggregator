@@ -16,6 +16,22 @@ import os
 import re
 import urllib
 
+def logger(logpath, level='INFO'):
+    log = logging.getLogger(__name__)
+    log.setLevel(level)
+    log.handlers.clear()
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    os.makedirs('.' + os.path.dirname(logpath), exist_ok=True)
+    formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
+    fileHandler = logging.FileHandler(logpath, 'w', 'utf-8')
+    fileHandler.setFormatter(formatter)
+    stdErrHandler = logging.StreamHandler(sys.stderr)
+    stdErrHandler.setFormatter(formatter)
+    log.addHandler(fileHandler)
+    log.addHandler(stdErrHandler)
+    return log
+
 class WikiTable:
 
     JOIN = 'JOIN'
@@ -68,10 +84,11 @@ class WikiTable:
             for sup in sups:
                 sup.decompose()
         text = self.clean_text(element.text)
-        if self.is_float(text):
-            return float(text)
+        comma_removed_text = text.replace(',', '')
+        if self.is_float(comma_removed_text):
+            return float(comma_removed_text)
         if self.is_int(text):
-            return int(text)
+            return int(comma_removed_text)
         table = element.find("table") # nested table?
         if table:
             texts = []
@@ -157,14 +174,14 @@ class WikiTable:
         while cur < self.count_rows():
             is_summary, s = self.is_summary_row(self.get_row(cur))
             if is_summary:
-                log.info("Row {} looks like a summary row with keyword '{}', removed.".format(old_idx+1, s))
+                self.log.info("Row {} looks like a summary row with keyword '{}', removed.".format(old_idx+1, s))
                 self.remove_row(cur)
                 removed += 1
                 old_idx += 1
                 continue
             cur += 1
             old_idx += 1
-        log.info("Removed {} summary rows.".format(removed))
+        self.log.info("Removed {} summary rows.".format(removed))
 
     def parse(self):
         try:
@@ -190,8 +207,8 @@ class WikiTable:
             return False
 
         self.remove_empty_columns()
-        log.debug(self.headers)
-        log.debug(self.columns)
+        self.log.debug(self.headers)
+        self.log.debug(self.columns)
         nattr = len(self.headers)
 
         if nattr == 0:
@@ -270,7 +287,7 @@ class WikiPage:
         self.showtable = showtable
 
     def parse_tables(self):
-        self.log.info("GET " + url)
+        self.log.info("GET " + self.url)
         r = requests.get(self.url)
         self.log.info("Response: {}".format(r.status_code))
         soup = BS(r.content, features="html.parser")
@@ -278,31 +295,30 @@ class WikiPage:
         self.log.info("{} tables are found.".format(len(tables)))
         nvalid = 0
         for i, t in enumerate(tables):
-            log.info("Parsing table {}/{}...".format(i+1, len(tables)))
-            wtable = WikiTable(t, log)
+            self.log.info("Parsing table {}/{}...".format(i+1, len(tables)))
+            wtable = WikiTable(t, self.log)
             wtable.parse()
             if wtable.isvalid:
                 nvalid += 1
                 self.tables.append(wtable)
                 if self.showtable:
-                    log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
-                    log.info("Number of attributes: {}".format(wtable.count_cols()))
-                    log.info("Number of rows: {}".format(wtable.count_rows()))
-                    log.info("\n{}".format(str(wtable)))
-                    log.info("=== END OF TABLE ===")
-        log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
+                    self.log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
+                    self.log.info("Number of attributes: {}".format(wtable.count_cols()))
+                    self.log.info("Number of rows: {}".format(wtable.count_rows()))
+                    self.log.info("\n{}".format(str(wtable)))
+                    self.log.info("=== END OF TABLE ===")
+        self.log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
     
-    def save(self, outpath):
+    def save(self, outpath='.'):
         for i, wtable in enumerate(self.tables):
             os.makedirs(outpath, exist_ok=True)
             fp = os.path.join(outpath, 'table-{0:05d}.csv'.format(i))
-            log.info("Writing to file {} ...".format(fp))
+            self.log.info("Write to file {}".format(fp))
             with open(fp, 'w', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile, dialect='excel')
                 writer.writerow(wtable.string_headers())
                 for row in wtable:
                     writer.writerow(row)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
@@ -317,21 +333,8 @@ if __name__ == "__main__":
     parser.set_defaults(show=False)
     args = parser.parse_args()
 
-    log = logging.getLogger(__name__)
-    log.setLevel(args.loglevel)
-    log.handlers.clear()
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-    if args.outpath:
-        os.makedirs(args.outpath, exist_ok=True)
     logpath = os.path.join(args.outpath, 'job.log')
-    formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
-    fileHandler = logging.FileHandler(logpath, 'w', 'utf-8')
-    fileHandler.setFormatter(formatter)
-    stdErrHandler = logging.StreamHandler(sys.stderr)
-    stdErrHandler.setFormatter(formatter)
-    log.addHandler(fileHandler)
-    log.addHandler(stdErrHandler)
+    log = logger(logpath, args.loglevel)
 
     for url in args.URLs:
         page_name = url.split("/")[-1]
