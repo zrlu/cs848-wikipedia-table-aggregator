@@ -71,6 +71,12 @@ class WikiTable:
             return float(text)
         if self.is_int(text):
             return int(text)
+        table = element.find("table") # nested table?
+        if table:
+            texts = []
+            for cell in table.find_all("td"):
+                texts.append(self.extract_data_cell(cell))
+            return "; ".join(texts)
         if text == "":
             children = list(element.children)
             for child in children:

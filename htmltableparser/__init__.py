@@ -28,7 +28,8 @@ class HTMLTableParser:
                         colidx += 1
 
     def parse_soup(self, soup):
-            for rowidx, tr in enumerate(soup.find_all('tr')):
+            tbody = soup.find('tbody')
+            for rowidx, tr in enumerate(tbody.find_all('tr', recursive=False)):
                 table_row_info = []
                 for cellidx, cell in enumerate(tr.find_all(['th', 'td'], recursive=False)):
                     colspan = int(cell.get('colspan', '1'))
