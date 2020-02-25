@@ -7,44 +7,28 @@ import sys
 import io
 import operator
 from collections import UserList
-import logging
 from prettytable import PrettyTable
 from HTMLTableParser import HTMLTableParser
+from logger import get_logger
 import argparse
 import csv
 import os
 import re
 import urllib
 
-def logger(logpath, level='INFO'):
-    log = logging.getLogger(__name__)
-    log.setLevel(level)
-    log.handlers.clear()
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-    os.makedirs('.' + os.path.dirname(logpath), exist_ok=True)
-    formatter = logging.Formatter('%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
-    fileHandler = logging.FileHandler(logpath, 'w', 'utf-8')
-    fileHandler.setFormatter(formatter)
-    stdErrHandler = logging.StreamHandler(sys.stderr)
-    stdErrHandler.setFormatter(formatter)
-    log.addHandler(fileHandler)
-    log.addHandler(stdErrHandler)
-    return log
-
 class WikiTable:
 
     JOIN = 'JOIN'
     LAST = 'LAST'
     
-    def __init__(self, soup, logging=logging):
+    def __init__(self, soup, log):
         self.soup = soup
         self.title = None
         self.headers = []
         self.columns = []
         self.unmerged_table = []
         self.isvalid = False
-        self.log = logging
+        self.log = log
         self.string_headers_type = self.JOIN
     
     def clean_text(self, text):
@@ -120,6 +104,7 @@ class WikiTable:
                 if cell.name == 'th':
                     row.append(self.extract_header_cell(cell))
             if stop:
+                row_idx -= 1
                 break
             if row:
                 headers.append(row)
@@ -280,10 +265,10 @@ class WikiTable:
 
 class WikiPage:
 
-    def __init__(self, url, logging=logging, showtable=False):
+    def __init__(self, url, log, showtable=True):
         self.url = url
         self.tables = []
-        self.log = logging
+        self.log = log
         self.showtable = showtable
 
     def parse_tables(self):
@@ -311,6 +296,7 @@ class WikiPage:
     
     def save(self, outpath='.'):
         for i, wtable in enumerate(self.tables):
+            self.log.debug("mkdir -p {}".format(outpath))
             os.makedirs(outpath, exist_ok=True)
             fp = os.path.join(outpath, 'table-{0:05d}.csv'.format(i))
             self.log.info("Write to file {}".format(fp))
@@ -321,6 +307,7 @@ class WikiPage:
                     writer.writerow(row)
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
     parser.add_argument('URLs', metavar='URL', type=str, nargs='+',
                         help='the urls of the wikipedia page')
@@ -333,12 +320,12 @@ if __name__ == "__main__":
     parser.set_defaults(show=False)
     args = parser.parse_args()
 
-    logpath = os.path.join(args.outpath, 'job.log')
-    log = logger(logpath, args.loglevel)
+
+    LOGGER = get_logger(WikiTable.__class__.__name__, 'job.log')
 
     for url in args.URLs:
         page_name = url.split("/")[-1]
-        page = WikiPage(url, logging=log, showtable=args.showtable)
+        page = WikiPage(url, LOGGER, showtable=args.showtable)
         page.parse_tables()
         if args.outpath:
             page.save(os.path.join(args.outpath, page_name))

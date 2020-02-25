@@ -63,6 +63,6 @@ if __name__ == '__main__':
 
     with open('unmergetest.html', 'r', encoding='utf-8') as file:
         parser = HTMLTableParser()
-        soup = BS(file.read(), features='html.parser')
+        soup = BS(file.read(), features='html.parser', from_encoding='utf-8')
         parser.parse_soup(soup)
         parser.print()
