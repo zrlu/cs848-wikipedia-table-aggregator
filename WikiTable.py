@@ -9,7 +9,7 @@ import operator
 from collections import UserList
 import logging
 from prettytable import PrettyTable
-from htmltableparser import HTMLTableParser
+from HTMLTableParser import HTMLTableParser
 import argparse
 import csv
 import os
@@ -115,7 +115,7 @@ class WikiTable:
     def is_summary_row(self, row):
         for data in row:
             if type(data) == str:
-                if re.match(re.compile('sum|average|total|turnout|majority|summary', re.IGNORECASE), data) is not None:
+                if re.match(re.compile('sum|average|total|turnout|majority|summary|career|all-star', re.IGNORECASE), data) is not None:
                     return True
         return False
 
@@ -261,8 +261,8 @@ if __name__ == "__main__":
                         help='the output path')
     parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
                         help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
-    parser.add_argument('--show', dest='show', action='store_true', help='print tables')
-    parser.add_argument('--no-show', dest='show', action='store_false')
+    parser.add_argument('--show-table', dest='show', action='store_true', help='print tables')
+    parser.add_argument('--no-show-table', dest='show', action='store_false')
     parser.set_defaults(show=False)
     args = parser.parse_args()
 
