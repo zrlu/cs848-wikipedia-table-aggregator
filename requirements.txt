@@ -17,5 +17,6 @@ requests==2.22.0
 SecretStorage==2.3.1
 six==1.11.0
 soupsieve==1.9.5
+SPARQLWrapper==1.8.5
 urllib3==1.25.8
 virtualenv==15.1.0
