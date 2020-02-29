@@ -15,24 +15,24 @@ import urllib
 from SPARQLWrapper import SPARQLWrapper, JSON
 from collections import defaultdict
 
-DBO = rdflib.Namespace("http://dbpedia.org/ontology/")
-DBR = rdflib.Namespace("http://dbpedia.org/resource/")
-DBP = rdflib.Namespace("http://dbpedia.org/property/")
+# DBO = rdflib.Namespace("http://dbpedia.org/ontology/")
+# DBR = rdflib.Namespace("http://dbpedia.org/resource/")
+# DBP = rdflib.Namespace("http://dbpedia.org/property/")
 
-query = prepareQuery(
-"""
-SELECT DISTINCT ?name ?url
-WHERE
-{
-    ?person foaf:name ?name .
-    ?person a dbo:BasketballPlayer .
-    ?person dbp:nba ?nba .
-    ?person foaf:isPrimaryTopicOf ?url
-}
-GROUP BY $url
-"""
-,initNs={'foaf': FOAF, 'dbo': DBO, 'dbr': DBR, 'dbp': DBP, 'xsd': XSD, 'rdf': RDF}
-)
+# query = prepareQuery(
+# """
+# SELECT DISTINCT ?name ?url
+# WHERE
+# {
+#     ?person foaf:name ?name .
+#     ?person a dbo:BasketballPlayer .
+#     ?person dbp:nba ?nba .
+#     ?person foaf:isPrimaryTopicOf ?url
+# }
+# GROUP BY $url
+# """
+# ,initNs={'foaf': FOAF, 'dbo': DBO, 'dbr': DBR, 'dbp': DBP, 'xsd': XSD, 'rdf': RDF}
+# )
 
 sparql = SPARQLWrapper("http://dbpedia.org/sparql")
 
