@@ -16,6 +16,8 @@ import urllib
 from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols
 import pandas as pd
 import pdb
+import unicodedata
+from unidecode import unidecode 
 
 class WikiTable:
 
@@ -37,6 +39,7 @@ class WikiTable:
     def _clean_text(self, text):
         for pattern, repl in cell_replace_special_symbols:
             text = re.sub(pattern, repl, text)
+        text = unidecode(text)
         text = re.sub(cell_remove_special_symbols, '', text.strip())
         return text
 

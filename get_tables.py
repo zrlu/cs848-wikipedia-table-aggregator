@@ -17,6 +17,7 @@ from collections import defaultdict
 from urllib.parse import urlparse
 import argparse
 import pdb
+from unidecode import unidecode
 
 if __name__ == '__main__':
 
@@ -64,7 +65,7 @@ if __name__ == '__main__':
         LOGGERS[current_p.name] = get_logger(current_p.name, log_path, level=args.loglevel)
 
     def func(url):
-        path = urlparse(url).path.encode('ascii', 'replace').decode('ascii')
+        path = unidecode(urlparse(url).path)
         print('GET', path)
         os.makedirs(path, exist_ok=True)
         current_p = multiprocessing.current_process()
