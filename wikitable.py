@@ -13,6 +13,7 @@ import argparse
 import os
 import re
 import urllib
+from blacklists import summary_row
 import pandas as pd
 import pdb
 
@@ -35,57 +36,66 @@ class WikiTable:
     def clean_text(self, text):
         return text.strip().replace('*', '').replace('†', '').replace('~', '').replace('\u200d', '')
 
-    def is_float(self, value):
+    def to_float(self, texts):
         try:
-            float(value)
-            return True
+            return float(texts)
         except TypeError:
-            return False
+            return None
         except ValueError:
-            return False
+            return None
 
-    def is_int(self, value):
+    def to_int(self, texts):
         try:
-            int(value)
-            return True
+            return int(texts)
         except TypeError:
-            return False
+            return None
         except ValueError:
-            return False
+            return None
+
+    def remove_sup(self, element):
+        sups = element.find_all("sup")
+        if sups:
+            for sup in sups:
+                sup.decompose()
 
     def extract_header_cell(self, element):
-        abbr = element.find('abbr')
-        if abbr:
-            return abbr.get('title').strip()
-        sups = element.find_all("sup")
-        if sups:
-            for sup in sups:
-                sup.decompose()
+        # abbr = element.find('abbr')
+        # if abbr:
+        #     return abbr.get('title').strip()
         return self.clean_text(element.text)
+    
+    def to_numeric(self, text):
+        no_comma = text.replace(',', '')
+        return self.to_int(no_comma) or self.to_float(no_comma)
+
+    def parse_currency(self, text):
+        if text.startswith('$'):
+            return self.to_numeric(text[1:])
+        return None
 
     def extract_data_cell(self, element):
-        sups = element.find_all("sup")
-        if sups:
-            for sup in sups:
-                sup.decompose()
         text = self.clean_text(element.text)
-        comma_removed_text = text.replace(',', '')
-        if self.is_float(comma_removed_text):
-            return float(comma_removed_text)
-        if self.is_int(text):
-            return int(comma_removed_text)
+        extracted = self.to_numeric(text)
+        if extracted is not None:
+            return extracted
+        extracted = self.parse_currency(text)
+        if extracted is not None:
+            return extracted
+
         table = element.find("table") # nested table?
         if table:
-            texts = []
-            for cell in table.find_all("td"):
-                texts.append(self.extract_data_cell(cell))
-            return "; ".join(texts)
+            # texts = []
+            # for cell in table.find_all("td"):
+            #     texts.append(self.extract_data_cell(cell))
+            # return "; ".join(texts)
+            return None
         if text == "":
-            children = list(element.children)
-            for child in children:
-                if child.name == 'span':
-                    if child.get('title'):
-                        return child.get('title')
+            # children = list(element.children)
+            # for child in children:
+            #     if child.name == 'span':
+            #         if child.get('title'):
+            #             return child.get('title')
+            return None
         return text
 
     def is_row_th(self, th):
@@ -103,12 +113,12 @@ class WikiTable:
                     stop = True
                     break
                 if cell.name == 'th':
-                    extracted = self.extract_header_cell(cell)
-                    if self.is_float(extracted) or self.is_int(extracted):
+                    string = self.extract_header_cell(cell)
+                    if self.to_numeric(string) is not None:
                         row_idx += 1
                         stop = True
                         break
-                    row.append(extracted)
+                    row.append(string)
             if stop:
                 row_idx -= 1
                 break
@@ -124,7 +134,7 @@ class WikiTable:
     def is_summary_row(self, row):
         for data in row:
             if type(data) == str:
-                if re.match(re.compile('sum|average|total|turnout|majority|summary|career|all-star', re.IGNORECASE), data) is not None:
+                if re.match(re.compile(summary_row, re.IGNORECASE), data) is not None:
                     return True, data
         return False, None
 
@@ -173,6 +183,7 @@ class WikiTable:
         try:
             parser = HTMLTableParser()
             parser.parse_soup(self.soup)
+            self.remove_sup(self.soup)
             self.unmerged_table = parser.get_columns()
         except Exception as e:
             self.log.warn(e)
@@ -205,6 +216,7 @@ class WikiTable:
         nattr = len(mapping)
 
         self.dataframe = pd.DataFrame(mapping)
+        self.dataframe.infer_objects()
 
         self.isvalid = True
         return True
@@ -264,6 +276,7 @@ class WikiPage:
                     self.log.info("Number of attributes: {}".format(wtable.count_cols()))
                     self.log.info("Number of rows: {}".format(wtable.count_rows()))
                     self.log.info("\n{}".format(str(wtable)))
+                    self.log.info("\n{}".format(str(wtable.dataframe.dtypes)))
                     self.log.info("=== END OF TABLE ===")
         self.log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
     
