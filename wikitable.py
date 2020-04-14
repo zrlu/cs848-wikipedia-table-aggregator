@@ -219,6 +219,10 @@ class WikiTable:
         self.dataframe = pd.DataFrame(mapping)
         self.dataframe.infer_objects()
 
+        if self.dataframe.empty:
+            self.isvalid = False
+            return False
+
         self.isvalid = True
         return True
     
