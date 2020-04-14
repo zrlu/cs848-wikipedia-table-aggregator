@@ -13,7 +13,7 @@ import argparse
 import os
 import re
 import urllib
-from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols
+from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols, not_available
 import pandas as pd
 import pdb
 import unicodedata
@@ -79,9 +79,15 @@ class WikiTable:
         if text.startswith('$'):
             return self._to_numeric(text[1:])
         return None
+    
+    def _is_not_available(self, text):
+        return re.match(re.compile(not_available, re.IGNORECASE), text) is not None
 
     def _extract_data_cell(self, element):
         text = self._clean_text(element.text)
+        if self._is_not_available(text):
+            return None
+
         extracted = self._to_numeric(text)
         if extracted is not None:
             return extracted
