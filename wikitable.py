@@ -10,11 +10,11 @@ from prettytable import PrettyTable
 from html_table import HTMLTableParser
 from logger import get_logger
 import argparse
-import csv
 import os
 import re
 import urllib
 import pandas as pd
+import pdb
 
 class WikiTable:
 
@@ -27,7 +27,7 @@ class WikiTable:
         self.headers = []
         self.columns = []
         self.unmerged_table = []
-        self.table = None
+        self.dataframe = None
         self.isvalid = False
         self.log = log
         self.string_headers_type = self.JOIN
@@ -147,16 +147,11 @@ class WikiTable:
 
         return columns
 
-    def remove_empty_columns(self):
-        headers_to_remove = []
-        cur = 0
-        while cur < self.count_cols():
-            if all(map(lambda value: value == '', self.columns[cur])):
-                headers_to_remove.append(self.headers[cur])
-                del self.columns[cur]
-            cur += 1
-        for h in headers_to_remove:
-            self.headers.remove(h)
+    def is_empty(self, value):
+        return value == '' or value is None
+    
+    def is_empty_list(self, lst):
+        return all(map(lambda value: self.is_empty(value), lst))
     
     def remove_summary_rows(self):
         cur = 0
@@ -195,47 +190,21 @@ class WikiTable:
             self.log.warn(e)
             self.log.warn("Unable to parse data.")
             return False
-
-        self.remove_empty_columns()
-        self.log.debug("headers: ")
-        self.log.debug(self.headers)
-        self.log.debug("columns: ")
-        self.log.debug(self.columns)
-        nattr = len(self.headers)
-
-        if nattr == 0:
-            self.log.warn("Discarding tables without a header.")
-            self.isvalid = False
-            return False
-        if nattr == 1:
-            self.log.warn("Discarding tables with only 1 column.")
-            self.isvalid = False
-            return False
-        if nattr != len(self.columns):
-            self.log.warn("The number of attributes does not match with the number of columns.")
-            self.log.warn("The number of attributes is {}".format(nattr))
-            self.log.warn("The number of columns is {}".format(len(self.columns)))
-            self.log.debug("Headers: ")
-
-            first_N_rows = min(10, len(self.columns[0]))
-            self.log.debug("First {} rows: ".format(first_N_rows))
-            for k in range(first_N_rows):
-                self.log.debug("Row {}: {}".format(k, [self.columns[i][k] for i in range(len(self.columns))]))
-            return False
+        
         if not all(len(self.columns[0]) == len(col) for col in self.columns):
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
 
-        unique_headers = set()
-        for header in self.string_headers():
-            if header not in unique_headers:
-                unique_headers.add(header)
-            else:
-                self.log.warn("Duplicate header '{}' found.".format(header))
-                self.log.debug(header)
-                return False
-
         self.remove_summary_rows()
+
+        mapping = {}
+        for i, h in enumerate(self.string_headers()):
+            if not self.is_empty_list(self.columns[i]):
+                mapping[h] = self.columns[i]
+
+        nattr = len(mapping)
+
+        self.dataframe = pd.DataFrame(mapping)
 
         self.isvalid = True
         return True
@@ -265,10 +234,7 @@ class WikiTable:
     def __str__(self):
         if not self.isvalid:
             return "INVALID TABLE"
-        pt = PrettyTable(self.string_headers())
-        for row in self.iter_row():
-            pt.add_row(row)
-        return str(pt)
+        return str(self.dataframe)
 
 class WikiPage:
 
@@ -307,11 +273,7 @@ class WikiPage:
             os.makedirs(outpath, exist_ok=True)
             fp = os.path.join(outpath, 'table-{0:05d}.csv'.format(i))
             self.log.info("Write to file {}".format(fp))
-            with open(fp, 'w', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile, dialect='excel')
-                writer.writerow(wtable.string_headers())
-                for row in wtable:
-                    writer.writerow(row)
+            wtable.dataframe.to_csv(fp, index=False)
 
 if __name__ == "__main__":
 
