@@ -6,15 +6,15 @@ import pprint
 import sys
 import io
 import operator
-from collections import UserList
 from prettytable import PrettyTable
-from HTMLTableParser import HTMLTableParser
+from html_table import HTMLTableParser
 from logger import get_logger
 import argparse
 import csv
 import os
 import re
 import urllib
+import pandas as pd
 
 class WikiTable:
 
@@ -27,12 +27,13 @@ class WikiTable:
         self.headers = []
         self.columns = []
         self.unmerged_table = []
+        self.table = None
         self.isvalid = False
         self.log = log
         self.string_headers_type = self.JOIN
     
     def clean_text(self, text):
-        return text.strip().replace("*", "").replace("†", "").replace("~", "")
+        return text.strip().replace('*', '').replace('†', '').replace('~', '').replace('\u200d', '')
 
     def is_float(self, value):
         try:
@@ -60,7 +61,7 @@ class WikiTable:
         if sups:
             for sup in sups:
                 sup.decompose()
-        return element.text.strip()
+        return self.clean_text(element.text)
 
     def extract_data_cell(self, element):
         sups = element.find_all("sup")
@@ -102,7 +103,12 @@ class WikiTable:
                     stop = True
                     break
                 if cell.name == 'th':
-                    row.append(self.extract_header_cell(cell))
+                    extracted = self.extract_header_cell(cell)
+                    if self.is_float(extracted) or self.is_int(extracted):
+                        row_idx += 1
+                        stop = True
+                        break
+                    row.append(extracted)
             if stop:
                 row_idx -= 1
                 break
@@ -179,7 +185,6 @@ class WikiTable:
             return False
         try:
             self.headers, row_idx = self.parse_headers()
-            self.log.debug(self.headers)
         except Exception as e:
             self.log.warn(e)
             self.log.warn("Unable to parse header.")
@@ -192,7 +197,9 @@ class WikiTable:
             return False
 
         self.remove_empty_columns()
+        self.log.debug("headers: ")
         self.log.debug(self.headers)
+        self.log.debug("columns: ")
         self.log.debug(self.columns)
         nattr = len(self.headers)
 
@@ -275,9 +282,9 @@ class WikiPage:
         self.log.info("GET " + self.url)
         r = requests.get(self.url)
         self.log.info("Response: {}".format(r.status_code))
-        soup = BS(r.content, features="html.parser")
+        soup = BS(r.content, features="html.parser", from_encoding='utf-8')
         tables = soup.findAll("table", attrs={"class": "wikitable"})
-        self.log.info("{} tables are found.".format(len(tables)))
+        self.log.info("{} table(s) found.".format(len(tables)))
         nvalid = 0
         for i, t in enumerate(tables):
             self.log.info("Parsing table {}/{}...".format(i+1, len(tables)))
@@ -321,7 +328,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    LOGGER = get_logger(WikiTable.__class__.__name__, 'job.log')
+    LOGGER = get_logger(WikiTable.__class__.__name__, 'wikitable.log', args.loglevel)
 
     for url in args.URLs:
         page_name = url.split("/")[-1]

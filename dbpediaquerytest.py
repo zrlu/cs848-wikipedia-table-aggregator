@@ -7,7 +7,7 @@ from rdflib.namespace import FOAF, XSD, RDF
 from rdflib.plugins.sparql import prepareQuery
 import requests
 import json
-from WikiTable import WikiTable, WikiPage
+from wikitable import WikiTable, WikiPage
 from logger import get_logger
 import os
 import multiprocessing

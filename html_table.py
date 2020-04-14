@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import pdb
+
 class HTMLTableParser:
 
     def __init__(self):
@@ -28,7 +30,11 @@ class HTMLTableParser:
                         colidx += 1
 
     def parse_soup(self, soup):
+
             tbody = soup.find('tbody')
+            for tr in tbody.find_all('tr', class_='sortbottom'):
+                tr.decompose()
+
             for rowidx, tr in enumerate(tbody.find_all('tr', recursive=False)):
                 table_row_info = []
                 for cellidx, cell in enumerate(tr.find_all(['th', 'td'], recursive=False)):
