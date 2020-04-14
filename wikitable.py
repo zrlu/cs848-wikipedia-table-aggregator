@@ -13,7 +13,7 @@ import argparse
 import os
 import re
 import urllib
-from blacklists import summary_row_keywords, cell_special_symbols
+from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols
 import pandas as pd
 import pdb
 
@@ -35,7 +35,10 @@ class WikiTable:
         self.name = name
     
     def _clean_text(self, text):
-        return re.sub(cell_special_symbols, '', text.strip())
+        for pattern, repl in cell_replace_special_symbols:
+            text = re.sub(pattern, repl, text)
+        text = re.sub(cell_remove_special_symbols, '', text.strip())
+        return text
 
     def _to_float(self, texts):
         try:
