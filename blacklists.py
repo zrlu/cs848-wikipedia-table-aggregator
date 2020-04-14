@@ -1,0 +1,1 @@
+summary_row = "sum|average|total|turnout|majority|summary|career|all-star"
