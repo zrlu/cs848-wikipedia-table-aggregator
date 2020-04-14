@@ -44,7 +44,7 @@ if __name__ == '__main__':
         urls = args.URL
 
     if hasattr(args, 'SPARQL'):
-        with open('nba.sparql', 'r') as f:
+        with open(args.SPARQL, 'r') as f:
             query_string = f.read()
             sparql = SPARQLWrapper("http://dbpedia.org/sparql")
             sparql.setQuery(query_string)
