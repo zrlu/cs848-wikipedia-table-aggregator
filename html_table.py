@@ -8,7 +8,7 @@ class HTMLTableParser:
         self.downward_growing_cells = []
         self.table_info = []
 
-    def process_table_info_row(self, rowidx, row):
+    def _process_table_info_row(self, rowidx, row):
         if len(self.downward_growing_cells) == 0:
             for cell in row:
                 colspan, rowspan, soup = cell
@@ -44,7 +44,7 @@ class HTMLTableParser:
                 self.table_info.append(table_row_info)
 
             for rowidx, row in enumerate(self.table_info):
-                self.process_table_info_row(rowidx, row)
+                self._process_table_info_row(rowidx, row)
     
     def print(self):
             from prettytable import PrettyTable

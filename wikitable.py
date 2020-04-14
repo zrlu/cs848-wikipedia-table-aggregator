@@ -33,10 +33,10 @@ class WikiTable:
         self.log = log
         self.string_headers_type = self.JOIN
     
-    def clean_text(self, text):
+    def _clean_text(self, text):
         return text.strip().replace('*', '').replace('†', '').replace('~', '').replace('\u200d', '')
 
-    def to_float(self, texts):
+    def _to_float(self, texts):
         try:
             return float(texts)
         except TypeError:
@@ -44,7 +44,7 @@ class WikiTable:
         except ValueError:
             return None
 
-    def to_int(self, texts):
+    def _to_int(self, texts):
         try:
             return int(texts)
         except TypeError:
@@ -52,33 +52,33 @@ class WikiTable:
         except ValueError:
             return None
 
-    def remove_sup(self, element):
-        sups = element.find_all("sup")
+    def _remove_reference(self, element):
+        sups = element.find_all("sup", class_="reference")
         if sups:
             for sup in sups:
                 sup.decompose()
 
-    def extract_header_cell(self, element):
+    def _extract_header_cell(self, element):
         # abbr = element.find('abbr')
         # if abbr:
         #     return abbr.get('title').strip()
-        return self.clean_text(element.text)
+        return self._clean_text(element.text)
     
-    def to_numeric(self, text):
+    def _to_numeric(self, text):
         no_comma = text.replace(',', '')
-        return self.to_int(no_comma) or self.to_float(no_comma)
+        return self._to_int(no_comma) or self._to_float(no_comma)
 
-    def parse_currency(self, text):
+    def _parse_currency(self, text):
         if text.startswith('$'):
-            return self.to_numeric(text[1:])
+            return self._to_numeric(text[1:])
         return None
 
-    def extract_data_cell(self, element):
-        text = self.clean_text(element.text)
-        extracted = self.to_numeric(text)
+    def _extract_data_cell(self, element):
+        text = self._clean_text(element.text)
+        extracted = self._to_numeric(text)
         if extracted is not None:
             return extracted
-        extracted = self.parse_currency(text)
+        extracted = self._parse_currency(text)
         if extracted is not None:
             return extracted
 
@@ -98,10 +98,10 @@ class WikiTable:
             return None
         return text
 
-    def is_row_th(self, th):
+    def _is_row_th(self, th):
         return th.get("scope") == 'row'
 
-    def parse_headers(self):
+    def _parse_headers(self):
         headers = []
         row_idx = 0
         while 1:
@@ -113,8 +113,8 @@ class WikiTable:
                     stop = True
                     break
                 if cell.name == 'th':
-                    string = self.extract_header_cell(cell)
-                    if self.to_numeric(string) is not None:
+                    string = self._extract_header_cell(cell)
+                    if self._to_numeric(string) is not None:
                         row_idx += 1
                         stop = True
                         break
@@ -131,47 +131,47 @@ class WikiTable:
 
         return list(map(list, zip(*headers))), row_idx
  
-    def is_summary_row(self, row):
+    def _is_summary_row(self, row):
         for data in row:
             if type(data) == str:
                 if re.match(re.compile(summary_row, re.IGNORECASE), data) is not None:
                     return True, data
         return False, None
 
-    def remove_row(self, i):
+    def _remove_row(self, i):
         for col in self.columns:
             del col[i]
 
-    def tag_count(self, tags, tagname):
+    def _tag_count(self, tags, tagname):
         count = 0
         for tag in tags:
             if tag.name == tagname:
                 count += 1
         return count
 
-    def parse_data(self, row_idx):
+    def _parse_data(self, row_idx):
         columns = []
         
         for col in self.unmerged_table:
-            columns.append(list(map(self.extract_data_cell, col[row_idx+1:])))
+            columns.append(list(map(self._extract_data_cell, col[row_idx+1:])))
 
         return columns
 
-    def is_empty(self, value):
+    def _is_empty(self, value):
         return value == '' or value is None
     
-    def is_empty_list(self, lst):
-        return all(map(lambda value: self.is_empty(value), lst))
+    def _is_empty_list(self, lst):
+        return all(map(lambda value: self._is_empty(value), lst))
     
-    def remove_summary_rows(self):
+    def _remove_summary_rows(self):
         cur = 0
         removed = 0
         old_idx = 0
         while cur < self.count_rows():
-            is_summary, s = self.is_summary_row(self.get_row(cur))
+            is_summary, s = self._is_summary_row(self.get_row(cur))
             if is_summary:
                 self.log.info("Row {} looks like a summary row with keyword '{}', removed.".format(old_idx+1, s))
-                self.remove_row(cur)
+                self._remove_row(cur)
                 removed += 1
                 old_idx += 1
                 continue
@@ -183,20 +183,20 @@ class WikiTable:
         try:
             parser = HTMLTableParser()
             parser.parse_soup(self.soup)
-            self.remove_sup(self.soup)
+            self._remove_reference(self.soup)
             self.unmerged_table = parser.get_columns()
         except Exception as e:
             self.log.warn(e)
             self.log.warn("HTMLTableParser: unable to parse raw html table.")
             return False
         try:
-            self.headers, row_idx = self.parse_headers()
+            self.headers, row_idx = self._parse_headers()
         except Exception as e:
             self.log.warn(e)
             self.log.warn("Unable to parse header.")
             return False
         try:
-            self.columns = self.parse_data(row_idx)
+            self.columns = self._parse_data(row_idx)
         except Exception as e:
             self.log.warn(e)
             self.log.warn("Unable to parse data.")
@@ -206,11 +206,11 @@ class WikiTable:
             self.log.warn("Columns don't have the same number of entries. Expect {}".format(len(self.columns[0])))
             return False
 
-        self.remove_summary_rows()
+        self._remove_summary_rows()
 
         mapping = {}
         for i, h in enumerate(self.string_headers()):
-            if not self.is_empty_list(self.columns[i]):
+            if not self._is_empty_list(self.columns[i]):
                 mapping[h] = self.columns[i]
 
         nattr = len(mapping)
