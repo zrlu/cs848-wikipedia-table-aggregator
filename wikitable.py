@@ -22,7 +22,7 @@ class WikiTable:
     JOIN = 'JOIN'
     LAST = 'LAST'
     
-    def __init__(self, soup, log):
+    def __init__(self, soup, log, name='default_name'):
         self.soup = soup
         self.title = None
         self.headers = []
@@ -32,6 +32,7 @@ class WikiTable:
         self.isvalid = False
         self.log = log
         self.string_headers_type = self.JOIN
+        self.name = name
     
     def _clean_text(self, text):
         return re.sub(cell_special_symbols, '', text.strip())
@@ -248,13 +249,28 @@ class WikiTable:
             return "INVALID TABLE"
         return str(self.dataframe)
 
+
+class TableNameFactory:
+
+    def __init__(self):
+        self.counter = 0
+    
+    def get_name(self):
+        name = 'table_{0:05d}'.format(self.counter)
+        self.counter += 1
+        return name
+
+
 class WikiPage:
 
-    def __init__(self, url, log, showtable=True):
+    def __init__(self, url, log):
         self.url = url
         self.tables = []
         self.log = log
-        self.showtable = showtable
+        self.table_name_factory = TableNameFactory()
+    
+    def _get_table_name(self, table):
+        return None
 
     def parse_tables(self):
         self.log.info("GET " + self.url)
@@ -266,48 +282,28 @@ class WikiPage:
         nvalid = 0
         for i, t in enumerate(tables):
             self.log.info("Parsing table {}/{}...".format(i+1, len(tables)))
-            wtable = WikiTable(t, self.log)
+            table_name = self._get_table_name(t) or self.table_name_factory.get_name()
+            wtable = WikiTable(t, self.log, name=table_name)
             wtable.parse()
             if wtable.isvalid:
                 nvalid += 1
                 self.tables.append(wtable)
-                if self.showtable:
-                    self.log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
-                    self.log.info("Number of attributes: {}".format(wtable.count_cols()))
-                    self.log.info("Number of rows: {}".format(wtable.count_rows()))
-                    self.log.info("\n{}".format(str(wtable)))
-                    self.log.info("\n{}".format(str(wtable.dataframe.dtypes)))
-                    self.log.info("=== END OF TABLE ===")
+                self.log.info("=== TABLE ({}/{}) ===".format(i+1, len(tables)))
+                self.log.info("Number of attributes: {}".format(wtable.count_cols()))
+                self.log.info("Number of rows: {}".format(wtable.count_rows()))
+                self.log.info("\n{}".format(str(wtable)))
+                self.log.info("\n{}".format(str(wtable.dataframe.dtypes)))
+                self.log.info("=== END OF TABLE ===")
         self.log.info("{}/{} tables are valid.".format(nvalid, len(tables)))
     
     def save(self, outpath='.'):
         for i, wtable in enumerate(self.tables):
             self.log.debug("mkdir -p {}".format(outpath))
             os.makedirs(outpath, exist_ok=True)
-            fp = os.path.join(outpath, 'table-{0:05d}.csv'.format(i))
+            fp = os.path.join(outpath, wtable.name + '.csv'.format(i))
             self.log.info("Write to file {}".format(fp))
             wtable.dataframe.to_csv(fp, index=False)
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
-    parser.add_argument('URLs', metavar='URL', type=str, nargs='+',
-                        help='the urls of the wikipedia page')
-    parser.add_argument('-o', '--out', dest='outpath', type=str, default="",
-                        help='the output path')
-    parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
-                        help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
-    parser.add_argument('--show-table', dest='showtable', action='store_true', help='print tables')
-    parser.add_argument('--no-show-table', dest='showtable', action='store_false')
-    parser.set_defaults(show=False)
-    args = parser.parse_args()
-
-
-    LOGGER = get_logger(WikiTable.__class__.__name__, 'wikitable.log', args.loglevel)
-
-    for url in args.URLs:
-        page_name = url.split("/")[-1]
-        page = WikiPage(url, LOGGER, showtable=args.showtable)
-        page.parse_tables()
-        if args.outpath:
-            page.save(os.path.join(args.outpath, page_name))
+    pass
