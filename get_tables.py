@@ -26,7 +26,8 @@ if __name__ == '__main__':
                         help='the output path')
     parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
                         help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
-
+    parser.add_argument('-p', '--num-process', dest='num_process', type=int, default=8,
+                        help="number of process (default=8)")
     subparsers = parser.add_subparsers(help='help for subcommand')
 
     parser_url = subparsers.add_parser('url', help='help for url subcommand')
@@ -37,7 +38,6 @@ if __name__ == '__main__':
     parser_sparql.add_argument('SPARQL', metavar='file', type=str,
                         help='the path to .sparql file')
 
-  
     args = parser.parse_args()
 
     if hasattr(args, 'URL'):
@@ -54,10 +54,14 @@ if __name__ == '__main__':
         urls = [b['url']['value'] for b in data['results']['bindings']]
     
     LOGGERS = {}
-    
+    os.makedirs(args.outpath, exist_ok=True)
+    log_dir = os.path.join(args.outpath, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+
     def init_worker():
         current_p = multiprocessing.current_process()
-        LOGGERS[current_p.name] = get_logger(current_p.name, current_p.name + '.log', level='ERROR')
+        log_path = os.path.join(log_dir, current_p.name + '.log')
+        LOGGERS[current_p.name] = get_logger(current_p.name, log_path, level=args.loglevel)
 
     def func(url):
         path = urlparse(url).path.encode('ascii', 'replace').decode('ascii')
@@ -68,7 +72,7 @@ if __name__ == '__main__':
         wiki_page.parse_tables()
         wiki_page.save(args.outpath + path)
 
-    pool = multiprocessing.Pool(16, initializer=init_worker)
+    pool = multiprocessing.Pool(args.num_process, initializer=init_worker)
     pool.map(func, urls)
     pool.close()
     pool.join()
