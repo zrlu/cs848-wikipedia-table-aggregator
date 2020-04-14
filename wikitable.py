@@ -13,7 +13,7 @@ import argparse
 import os
 import re
 import urllib
-from blacklists import summary_row
+from blacklists import summary_row_keywords, cell_special_symbols
 import pandas as pd
 import pdb
 
@@ -34,7 +34,7 @@ class WikiTable:
         self.string_headers_type = self.JOIN
     
     def _clean_text(self, text):
-        return text.strip().replace('*', '').replace('†', '').replace('~', '').replace('\u200d', '')
+        return re.sub(cell_special_symbols, '', text.strip())
 
     def _to_float(self, texts):
         try:
@@ -134,7 +134,7 @@ class WikiTable:
     def _is_summary_row(self, row):
         for data in row:
             if type(data) == str:
-                if re.match(re.compile(summary_row, re.IGNORECASE), data) is not None:
+                if re.match(re.compile(summary_row_keywords, re.IGNORECASE), data) is not None:
                     return True, data
         return False, None
 
