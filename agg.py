@@ -1,4 +1,5 @@
-from wikitable import WikiPage
+# -*- coding: utf-8 -*-
+ 
 import pandas as pd
 from glob import glob
 import pdb
@@ -46,6 +47,7 @@ def help():
 
 if __name__ == '__main__':
   
+    print('loading the csv files...')
     load()
     show_info()
 
