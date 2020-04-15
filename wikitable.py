@@ -85,9 +85,8 @@ class WikiTable:
 
     def _extract_data_cell(self, element):
         text = self._clean_text(element.text)
-        if self._is_not_available(text):
+        if text in not_available:
             return None
-
         extracted = self._to_numeric(text)
         if extracted is not None:
             return extracted
@@ -220,6 +219,9 @@ class WikiTable:
             return False
 
         self._remove_summary_rows()
+
+        self.log.debug(self.string_headers())
+        self.log.debug(self.columns)
 
         mapping = {}
         for i, h in enumerate(self.string_headers()):

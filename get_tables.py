@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Fetch tables from a Wikipedia page.')
 
-    parser.add_argument('-o', '--out', dest='outpath', type=str, default="",
+    parser.add_argument('-o', '--out', dest='outpath', type=str, default=".",
                         help='the output path')
     parser.add_argument('-L', '--loglevel', dest='loglevel', type=str, default="INFO",
                         help="log level (default='INFO')", choices=('CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'))
