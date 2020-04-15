@@ -36,13 +36,13 @@ def agg(agg, col_name):
 
 def help():
     print('COMMANDS:')
-    print('q: exit')
-    print('h: display this message')
+    print('\t', 'q: exit')
+    print('\t', 'h: display this message')
     print('VARIABLES:')
-    print('cat: access the concatenated dataframe of wikipedia tables')
+    print('\t', 'cat: access the concatenated dataframe of wikipedia tables')
     print('PYTHON FUNCTIONS:')
-    print('show_info(): show the columns of the dataframe, run once when this programs starts')
-    print("load(path=\'wiki\\\'): load csv files into a concatenated dataframe, run once when this program starts")
+    print('\t', 'show_info(): show the column information of the concatenated dataframe, run once when this programs starts')
+    print('\t', "load(path): load csv files under path into a concatenated dataframe, run once when this program starts, default path is 'wiki'")
 
 if __name__ == '__main__':
   
