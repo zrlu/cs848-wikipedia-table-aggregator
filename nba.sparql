@@ -5,10 +5,9 @@ PREFIX rdf: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dbp: <http://dbpedia.org/property/>
 PREFIX dbr: <http://dbpedia.org/resource/>
 
-SELECT DISTINCT ?name ?url
+SELECT DISTINCT ?url
 WHERE
 {
-    ?person foaf:name ?name .
     ?person a dbo:BasketballPlayer .
     ?person dbp:nba ?nba .
     ?person foaf:isPrimaryTopicOf ?url
