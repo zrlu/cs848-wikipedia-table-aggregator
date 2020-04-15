@@ -13,7 +13,7 @@ import argparse
 import os
 import re
 import urllib
-from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols, not_available
+from rules import summary_row_keywords, cell_remove_special_symbols, cell_replace_special_symbols
 import pandas as pd
 import pdb
 import unicodedata
@@ -77,20 +77,26 @@ class WikiTable:
 
     def _parse_currency(self, text):
         if text.startswith('$'):
-            return self._to_numeric(text[1:])
+            return self._to_numeric(text[1:].lstrip())
         return None
     
+    def _parse_percentage(self, text):
+        if text.endswith('%'):
+            return self._to_numeric(text[:1].rstrip()) / 100
+        return None
+
     def _is_not_available(self, text):
         return re.match(re.compile(not_available, re.IGNORECASE), text) is not None
 
     def _extract_data_cell(self, element):
         text = self._clean_text(element.text)
-        if text in not_available:
-            return None
         extracted = self._to_numeric(text)
         if extracted is not None:
             return extracted
         extracted = self._parse_currency(text)
+        if extracted is not None:
+            return extracted
+        extracted = self._parse_percentage(text)
         if extracted is not None:
             return extracted
 
@@ -101,13 +107,14 @@ class WikiTable:
             #     texts.append(self.extract_data_cell(cell))
             # return "; ".join(texts)
             return None
-        if text == "":
+        if not text:
             # children = list(element.children)
             # for child in children:
             #     if child.name == 'span':
             #         if child.get('title'):
             #             return child.get('title')
             return None
+
         return text
 
     def _is_row_th(self, th):

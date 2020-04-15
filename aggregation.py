@@ -22,17 +22,19 @@ def agg(agg, col_name):
 
     if agg == 'mean' or agg == 'avg' or agg == 'average':
         return col.mean()
-    if agg == 'min':
+    if agg == 'min' or agg == 'minimum':
         return col.min()
-    if agg == 'max':
+    if agg == 'max' or agg == 'maximum':
         return col.max()
     if agg == 'sum':
         return col.sum()
+    if agg == 'count' or agg == 'size':
+        return col.count()
     return None
 
 if __name__ == '__main__':
   
-    load('wiki2/')
+    load('wiki/')
     show_info()
 
     pdb.set_trace()
