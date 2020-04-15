@@ -114,7 +114,7 @@ class WikiTable:
     # some cell uses words like 'N/A', this function tells if a cell with such
     # value to None, but this function is not used for now
     def _is_not_available(self, text):
-        return re.match(re.compile(not_available, re.IGNORECASE), text) is not None
+        return re.match(re.compile([], re.IGNORECASE), text) is not None
 
     # extract value a data cell
     def _extract_data_cell(self, element):
