@@ -79,7 +79,7 @@ class WikiTable:
 
     # remove the citation element from the html node tree
     def _remove_reference(self, element):
-        sups = element.find_all("sup", class_="reference")
+        sups = element.find_all("sup")
         if sups:
             for sup in sups:
                 sup.decompose()
