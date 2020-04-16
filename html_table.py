@@ -8,6 +8,7 @@ class HTMLTableParser:
         self.downward_growing_cells = []
         self.table_info = []
 
+    # process each row
     def _process_table_info_row(self, rowidx, row):
         if len(self.downward_growing_cells) == 0:
             for cell in row:
@@ -29,6 +30,7 @@ class HTMLTableParser:
                         self.downward_growing_cells[colidx].append((rowidx, rowspan, soup))
                         colidx += 1
 
+    # process a table node
     def parse_soup(self, soup):
 
             tbody = soup.find('tbody')
