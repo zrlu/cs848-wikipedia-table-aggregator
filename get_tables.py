@@ -73,7 +73,17 @@ if __name__ == '__main__':
         wiki_page.parse_tables()
         wiki_page.save(args.outpath + path)
 
-    pool = multiprocessing.Pool(args.num_process, initializer=init_worker)
-    pool.map(func, urls)
-    pool.close()
-    pool.join()
+    if args.num_process == 1:
+        log_path = os.path.join(log_dir, 'MainProcess.log')
+        logger = get_logger('MainProcess', log_path, level=args.loglevel)
+        for url in urls:
+            path = unidecode(urlparse(url).path)
+            print('GET', path)
+            wiki_page = WikiPage(url, logger)
+            wiki_page.parse_tables()
+            wiki_page.save(args.outpath + path)
+    else:
+        pool = multiprocessing.Pool(args.num_process, initializer=init_worker)
+        pool.map(func, urls)
+        pool.close()
+        pool.join()
