@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
+import pdb
+
 class HTMLTableParser:
 
     def __init__(self):
         self.downward_growing_cells = []
         self.table_info = []
 
-    def process_table_info_row(self, rowidx, row):
+    def _process_table_info_row(self, rowidx, row):
         if len(self.downward_growing_cells) == 0:
             for cell in row:
                 colspan, rowspan, soup = cell
@@ -28,7 +30,11 @@ class HTMLTableParser:
                         colidx += 1
 
     def parse_soup(self, soup):
+
             tbody = soup.find('tbody')
+            for tr in tbody.find_all('tr', class_='sortbottom'):
+                tr.decompose()
+
             for rowidx, tr in enumerate(tbody.find_all('tr', recursive=False)):
                 table_row_info = []
                 for cellidx, cell in enumerate(tr.find_all(['th', 'td'], recursive=False)):
@@ -38,7 +44,7 @@ class HTMLTableParser:
                 self.table_info.append(table_row_info)
 
             for rowidx, row in enumerate(self.table_info):
-                self.process_table_info_row(rowidx, row)
+                self._process_table_info_row(rowidx, row)
     
     def print(self):
             from prettytable import PrettyTable
@@ -63,6 +69,6 @@ if __name__ == '__main__':
 
     with open('unmergetest.html', 'r', encoding='utf-8') as file:
         parser = HTMLTableParser()
-        soup = BS(file.read(), features='html.parser')
+        soup = BS(file.read(), features='html.parser', from_encoding='utf-8')
         parser.parse_soup(soup)
         parser.print()
