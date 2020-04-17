@@ -2,7 +2,7 @@
 ## Setup
 The software supports Python 3.6.9
 
-##
+Install the required Python modules.
 ```python
 pip3 install -r requirements.txt
 ```
