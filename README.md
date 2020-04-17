@@ -40,10 +40,10 @@ python3 agg.py
 # (displays columns and data type)
 
 # peek values in a column
-peek('3P%')
+>> peek('3P%')
 
 # peek values in a column and ignore nan
-peek('3P%', dropna=True)
+>> peek('3P%', dropna=True)
 
 # compute the average
 >> agg('mean', 'field_goals')
@@ -75,6 +75,17 @@ Name: 3P%, Length: 9131, dtype: object
 
 # manipulate the dataframe directy
 # find all 3P% where Year starts with "2009" or Year is 2009
-pd.to_numeric(cat[cat['Year'].str.match("2009") | (cat['Year'] == 2009)]['3P%'], errors='coerce')
-
+>> pd.to_numeric(cat[cat['Year'].str.match("2009") | (cat['Year'] == 2009)]['3P%'], errors='coerce')
+0     0.324
+0     0.383
+2     0.352
+8     0.000
+4     0.000
+      ...  
+12    0.158
+12    0.375
+9     0.308
+1     0.399
+0     0.313
+Name: 3P%, Length: 421, dtype: float64
 ```
