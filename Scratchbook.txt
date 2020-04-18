@@ -1,2 +1,0 @@
-python3 get_tables.py -o . --loglevel=DEBUG url https://en.wikipedia.org/wiki/2019%E2%80%9320_coronavirus_pandemic
-python3 get_tables.py -o . --loglevel=DEBUG sparql nba.sparql 
