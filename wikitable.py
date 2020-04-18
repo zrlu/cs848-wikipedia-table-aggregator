@@ -79,7 +79,7 @@ class WikiTable:
 
     # remove the citation element from the html node tree
     def _remove_reference(self, element):
-        sups = element.find_all("sup", class_="reference")
+        sups = element.find_all("sup")
         if sups:
             for sup in sups:
                 sup.decompose()
@@ -163,7 +163,7 @@ class WikiTable:
         return text
 
     # determine if it is a vertical header
-    def _is_row_th(self, th):
+    def _is_data_th(self, th):
         return th.get("scope") == 'row'
 
     # try parsing the headers
@@ -180,6 +180,9 @@ class WikiTable:
                     stop = True
                     break
                 if cell.name == 'th':
+                    if self._is_data_th(cell):
+                        stop = True
+                        break
                     string = self._extract_header_cell(cell)
                     # if a row with th cell is reached and contains numerics value, it is likely
                     # that the headers stops here
