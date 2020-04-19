@@ -45,9 +45,25 @@ python3 agg.py
 # peek values in a column and ignore nan
 >> peek('3P%', dropna=True)
 
-# compute the average
->> agg('mean', 'field_goals')
-0.5460839705028452
+# compute the average games played
+>> agg('mean', 'games_played')
+38.221339779005525
+
+# compute the minimum games played
+>> agg('min', 'games_played')
+1.0
+
+# compute the maximum games played
+>> agg('max', 'games_played')
+82.0
+
+# compute the number records of games played
+>> agg('count', 'games_played')
+8688
+
+# compute the sum of games played
+>> agg('sum', 'games_played')
+332067.0
 
 # you can change the column name mapping in rules.py, then reload everything
 >> load()
@@ -73,7 +89,7 @@ True
 4    0.263
 Name: 3P%, Length: 9131, dtype: object
 
-# manipulate the dataframe directy
+# manipulate the dataframe directly
 # find all 3P% where Year starts with "2009" or Year is 2009
 >> pd.to_numeric(cat[cat['Year'].str.match("2009") | (cat['Year'] == 2009)]['3P%'], errors='coerce')
 0     0.324
